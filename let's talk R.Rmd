@@ -1,0 +1,99 @@
+---
+title: "Let's talk R"
+author: "bin"
+date: "7/2/2021"
+output: html_document
+---
+
+```{r}
+pacman::p_load(rio,tidyverse,survey,srvyr,gtsummary)
+
+```
+
+
+```{r}
+#Use piping, verbs like 'group_by' and 'summarize', and other 'dplyr' inspired syntactic style when calculating summary statistics on survey
+#data using functions from the 'survey' package.
+
+#Author Greg Freedman Ellis [aut, cre]
+#Thomas Lumley [ctb]*****
+#Tomasz Zółtak [ctb] ˙
+#Ben Schneider [aut, ctb]
+#Pavel N. Krivitsky [ctb]
+
+```
+
+```{r} 
+# Lets see how it work with some examples
+#import the data 
+
+zinc <-import("zinc.csv")
+
+zinc <- zinc %>%  filter(strata !=28)
+
+# First we have setup the survey design using srvyr 
+
+weighted_data <- zinc %>% as_survey_design(id = cluster, strata =NULL, weights = weights, nest=T)
+
+
+```
+
+
+
+```{r}
+#Once you’ve set up your survey data, you can use dplyr verbs such as mutate(), select(), filter() and rename().
+weighted_data %>%
+  srvyr::select(regionName,zinc) %>%
+  group_by(regionName) %>% # group
+  summarise(mean_serum = survey_mean(zinc,na.rm = T)) # summerise 
+
+
+```
+
+
+```{r}
+# mutate and summmerise proportion of folate deficency 
+
+weighted_data %>%
+  srvyr::group_by(regionName) %>%
+  srvyr::mutate(zinc_def = ifelse(zinc < 20, 1, 0)) %>%
+  srvyr::summarise((survey_mean(zinc,na.rm = T)) * 100)
+
+# or 
+
+weighted_data %>%
+  srvyr::group_by(regionName) %>%
+  srvyr::summarise(
+    zinc_def = (survey_mean(zinc < 20, proportion = TRUE, vartype = "ci",na.rm = T)) * 100)
+
+zinc$zinc_def <- ifelse(zinc < 20, 1, 0)
+
+# unweighted data 
+zinc %>% 
+  group_by(regionName) %>% summarise(zinc_def =(mean(zinc,na.rm = T))*100)
+
+```
+
+```{r}
+# we can also use the package with ggplot2 
+
+# prepare the data  
+ 
+gg <- weighted_data %>%
+  srvyr::group_by(regionName) %>%
+  srvyr::summarise(
+    zinc_def = (survey_mean(zinc < 20, proportion = TRUE,na.rm = T)) * 100)
+
+# make a bar graph with the data #
+ggplot(data=gg, aes(x=regionName, y=zinc_def)) +
+  geom_bar(stat="identity")
+
+
+ggplot(data=gg, aes(x=reorder(regionName, zinc_def), y=zinc_def)) +
+  geom_bar(stat="identity")
+
+# one of the great thing about this package is you can plot a graph with the weighted data#
+
+```
+
+
